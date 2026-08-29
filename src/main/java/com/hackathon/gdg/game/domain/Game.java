@@ -100,6 +100,42 @@ public class Game {
 		status = GameStatus.PRINTING;
 	}
 
+	public void startHiding(Instant startedAt) {
+		if (status != GameStatus.PRINTING) {
+			throw new IllegalStateException("PRINTING 상태의 게임만 숨기기 단계로 전환할 수 있습니다.");
+		}
+		status = GameStatus.HIDING;
+		hideStartedAt = Objects.requireNonNull(startedAt);
+	}
+
+	public Instant getHideEndsAt() {
+		return hideStartedAt == null ? null : hideStartedAt.plusSeconds(hideDurationSeconds);
+	}
+
+	public void startSeeking(Instant startedAt) {
+		if (status != GameStatus.HIDING) {
+			throw new IllegalStateException("HIDING 상태의 게임만 탐색 단계로 전환할 수 있습니다.");
+		}
+		status = GameStatus.SEEKING;
+		seekStartedAt = Objects.requireNonNull(startedAt);
+	}
+
+	public Instant getSeekEndsAt() {
+		return seekStartedAt == null ? null : seekStartedAt.plusSeconds(seekDurationSeconds);
+	}
+
+	public void finish(Winner winner, Instant finishedAt) {
+		if (status != GameStatus.SEEKING) {
+			throw new IllegalStateException("SEEKING 상태의 게임만 종료할 수 있습니다.");
+		}
+		if (winner == Winner.NONE) {
+			throw new IllegalArgumentException("게임 종료 시 승자가 필요합니다.");
+		}
+		status = GameStatus.FINISHED;
+		this.winner = Objects.requireNonNull(winner);
+		this.finishedAt = Objects.requireNonNull(finishedAt);
+	}
+
 	@PrePersist
 	void onCreate() {
 		createdAt = Instant.now();

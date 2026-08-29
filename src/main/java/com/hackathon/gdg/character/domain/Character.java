@@ -146,6 +146,37 @@ public class Character {
 		submittedAt = Instant.now();
 	}
 
+	public void markPrinted(Instant printedAt) {
+		if (status != CharacterStatus.SUBMITTED) {
+			throw new IllegalStateException("SUBMITTED Character만 인쇄 완료할 수 있습니다.");
+		}
+		status = CharacterStatus.PRINTED;
+		this.printedAt = Objects.requireNonNull(printedAt);
+	}
+
+	public void markHidden() {
+		if (status != CharacterStatus.PRINTED) {
+			throw new IllegalStateException("PRINTED Character만 숨기기 완료할 수 있습니다.");
+		}
+		status = CharacterStatus.HIDDEN;
+	}
+
+	public void markFound(Participant seeker, Instant foundAt) {
+		if (status != CharacterStatus.HIDDEN) {
+			throw new IllegalStateException("HIDDEN Character만 발견 처리할 수 있습니다.");
+		}
+		status = CharacterStatus.FOUND;
+		this.foundByParticipant = Objects.requireNonNull(seeker);
+		this.foundAt = Objects.requireNonNull(foundAt);
+	}
+
+	public void markSurvived() {
+		if (status != CharacterStatus.HIDDEN) {
+			throw new IllegalStateException("HIDDEN Character만 생존 처리할 수 있습니다.");
+		}
+		status = CharacterStatus.SURVIVED;
+	}
+
 	public Long getId() {
 		return id;
 	}

@@ -81,6 +81,20 @@ public class Participant {
 		status = ParticipantStatus.ACTIVE;
 	}
 
+	public void eliminate() {
+		if (gameRole != GameRole.HIDER || status != ParticipantStatus.ACTIVE) {
+			throw new IllegalStateException("ACTIVE HIDER만 탈락 처리할 수 있습니다.");
+		}
+		status = ParticipantStatus.ELIMINATED;
+	}
+
+	public void survive() {
+		if (gameRole != GameRole.HIDER || status != ParticipantStatus.ACTIVE) {
+			throw new IllegalStateException("ACTIVE HIDER만 생존 처리할 수 있습니다.");
+		}
+		status = ParticipantStatus.SURVIVED;
+	}
+
 	@PrePersist
 	void onCreate() {
 		joinedAt = Instant.now();

@@ -299,3 +299,48 @@ HOST가 제출된 Character와 고유 QR을 안정적으로 1:1 배치해 브라
 
 - Browser Print 화면과 CSS는 Frontend 구현 범위다.
 - 인쇄 확인 후 `HIDING` 전환과 Character `PRINTED` 처리는 다음 상태 전이 단계에서 구현한다.
+
+## 2026-08-29 16:34 - HIDING부터 결과까지 전체 게임 루프 구현
+
+### 작업 목적
+
+인쇄 완료 이후 숨기기, 탐색, QR 발견, 제한시간 종료와 결과 조회까지 MVP Backend 게임 흐름을 완주했다.
+
+### 변경 파일
+
+- `api.md`, `architecture.md`
+- `src/main/java/com/hackathon/gdg/{game,character,participant,room}/domain/*`
+- `src/main/java/com/hackathon/gdg/{game,character}/repository/*`
+- `src/main/java/com/hackathon/gdg/game/{controller,service,dto}/*`
+- `src/main/java/com/hackathon/gdg/character/{controller,service}/*`
+- `src/main/java/com/hackathon/gdg/scan/{controller,dto,service}/*`
+- `src/main/java/com/hackathon/gdg/result/{controller,dto,service}/*`
+- `src/main/java/com/hackathon/gdg/global/error/ErrorCode.java`
+- `src/test/java/com/hackathon/gdg/game/GameFlowIntegrationTests.java`
+
+### 변경 내용
+
+- HOST 인쇄 완료 확인으로 모든 Character를 `PRINTED`, Game을 `HIDING`으로 전환하고 타이머 시작
+- HIDER 본인 Character의 `PRINTED → HIDDEN` 준비 완료 처리
+- 숨기기 시간 만료, 모든 HIDER 준비, HOST 요청을 모두 검증한 `SEEKING` 시작
+- ACTIVE SEEKER 전용 QR Token 조회와 발견 처리 API 구현
+- Game 및 Character 비관적 잠금으로 동일 QR 동시 Scan 중 하나만 성공하도록 보장
+- 발견 시 Character `FOUND`, HIDER `ELIMINATED` 처리 및 마지막 발견 시 SEEKER 즉시 승리
+- 탐색 만료 시 남은 HIDER/Character를 `SURVIVED` 처리하고 HIDER 승리로 종료
+- 만료 QR 요청은 종료 상태를 Commit하면서 Scan은 409로 거절하도록 Transaction 정책 분리
+- HIDER 생존시간 순위와 SEEKER 발견 수를 포함한 결과 API 구현
+- Game 응답에 `hideEndsAt`, `seekEndsAt` 추가
+
+### 테스트
+
+- 전체 게임 루프 통합 테스트 4개 추가
+- SEEKER 승리, HIDER 시간 승리, 권한·상태·타이머 조건, 잘못된 QR과 다른 Game QR 차단 확인
+- 동시 동일 QR Scan 2건 중 정확히 1건 성공 및 1건 중복 거부 검증
+- 총 34개 테스트를 전체 실행 대상으로 구성
+- 전체 34개 테스트: 실패 0, 오류 0
+- `./gradlew clean build`: `BUILD SUCCESSFUL`
+
+### 참고사항
+
+- 현재 MVP는 분산 Scheduler 없이 Game 조회, 종료, 결과 조회와 QR 요청 시 만료를 동기화한다.
+- WebSocket 실시간 Event와 Frontend 화면 연동은 별도 후속 작업이다.

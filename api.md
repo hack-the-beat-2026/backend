@@ -459,3 +459,187 @@ Participant ID, Character ID, Game ID는 포함하지 않는다.
 - 다른 Game의 Character 또는 없는 Character: `404 CHARACTER_NOT_FOUND`
 - `PRINTING`이 아닌 상태: `409 GAME_INVALID_STATE`
 - QR 생성 실패: `500 QR_GENERATION_FAILED`
+
+## 숨기기 Phase 시작
+
+인쇄와 출력물 배부가 끝나면 HOST가 숨기기 타이머를 시작한다.
+
+```http
+POST /api/v1/games/{gameId}/hiding/start
+Authorization: Bearer {hostToken}
+```
+
+성공 시 모든 Character가 `SUBMITTED → PRINTED`, Game이 `PRINTING → HIDING`으로
+전환된다.
+
+```json
+{
+  "gameId": 1,
+  "status": "HIDING",
+  "hideStartedAt": "2026-08-29T08:00:00Z",
+  "hideEndsAt": "2026-08-29T08:05:00Z"
+}
+```
+
+```bash
+curl -X POST http://localhost:8080/api/v1/games/1/hiding/start \
+  -H 'Authorization: Bearer YOUR_HOST_TOKEN'
+```
+
+- HOST가 아님: `403 ACCESS_DENIED`
+- `PRINTING`이 아님: `409 GAME_INVALID_STATE`
+
+## HIDER 숨기기 완료
+
+출력물을 실제 위치에 배치한 HIDER가 본인 Character를 준비 완료 처리한다. `characterId`는
+내 Character 조회 API에서 얻는다.
+
+```http
+POST /api/v1/games/{gameId}/characters/{characterId}/hidden
+Authorization: Bearer {hiderParticipantToken}
+```
+
+성공 응답은 Character 응답과 같고 `status`가 `HIDDEN`이다.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/games/1/characters/11/hidden \
+  -H 'Authorization: Bearer YOUR_HIDER_TOKEN'
+```
+
+- 다른 사람의 Character: `403 ACCESS_DENIED`
+- HIDER가 아님: `403 INVALID_GAME_ROLE`
+- 이미 완료함: `409 CHARACTER_ALREADY_HIDDEN`
+- `HIDING`이 아님: `409 GAME_INVALID_STATE`
+
+## 탐색 Phase 시작
+
+숨기기 제한시간이 끝나고 모든 HIDER가 준비된 뒤 HOST가 명시적으로 시작한다. 시간
+만료만으로 자동 시작하지 않는다.
+
+```http
+POST /api/v1/games/{gameId}/seeking/start
+Authorization: Bearer {hostToken}
+```
+
+```json
+{
+  "gameId": 1,
+  "status": "SEEKING",
+  "seekStartedAt": "2026-08-29T08:05:00Z",
+  "seekEndsAt": "2026-08-29T08:25:00Z"
+}
+```
+
+- 숨기기 시간 전: `409 HIDE_TIME_NOT_EXPIRED`
+- 준비되지 않은 HIDER 존재: `409 HIDERS_NOT_READY`
+- `HIDING`이 아님: `409 GAME_INVALID_STATE`
+
+## QR Token 조회
+
+QR 스캔으로 얻은 Token이 현재 탐색 대상인지 ACTIVE SEEKER가 확인한다.
+
+```http
+GET /api/v1/characters/qr/{qrToken}
+Authorization: Bearer {seekerParticipantToken}
+```
+
+```json
+{
+  "gameId": 1,
+  "characterId": 11,
+  "status": "HIDDEN"
+}
+```
+
+- HIDER 또는 HOST: `403 INVALID_GAME_ROLE` 또는 `403 ACCESS_DENIED`
+- 잘못된 Token: `404 INVALID_QR_TOKEN`
+- `SEEKING`이 아님: `409 GAME_INVALID_STATE`
+
+## Character 발견 처리
+
+ACTIVE SEEKER가 QR Token에 연결된 HIDER를 발견 처리한다.
+
+```http
+POST /api/v1/games/{gameId}/characters/{qrToken}/found
+Authorization: Bearer {seekerParticipantToken}
+```
+
+```json
+{
+  "characterId": 11,
+  "hiderNickname": "재원",
+  "originalPhotoUrl": "/files/1/10/original-uuid.jpg",
+  "previewImageUrl": "/files/1/10/preview-uuid.jpg",
+  "survivalSeconds": 732,
+  "gameFinished": false,
+  "winner": "NONE"
+}
+```
+
+성공 시 Character는 `HIDDEN → FOUND`, HIDER는 `ACTIVE → ELIMINATED`가 된다. 마지막
+HIDER가 발견되면 같은 Transaction에서 Game과 Room을 종료하고 `winner=SEEKER`를
+반환한다. Game과 Character 비관적 잠금으로 동일 QR 동시 요청은 하나만 성공한다.
+
+- 이미 발견됨: `409 CHARACTER_ALREADY_FOUND`
+- 다른 Game의 QR: `404 INVALID_QR_TOKEN`
+- 탐색시간 만료: HIDER 승리 종료를 저장한 뒤 `409 GAME_INVALID_STATE`
+
+## 게임 종료 확인
+
+HOST가 탐색 타이머 종료 시 호출한다. 모든 HIDER 발견은 마지막 Scan에서 자동 종료된다.
+
+```http
+POST /api/v1/games/{gameId}/finish
+Authorization: Bearer {hostToken}
+```
+
+탐색시간이 남았으면 `409 SEEK_TIME_NOT_EXPIRED`다. 마감 시 남은 `HIDDEN` Character와
+HIDER를 각각 `SURVIVED`로 바꾸고 `winner=HIDER`, Game/Room을 `FINISHED`로 전환한다.
+이미 종료된 Game에 다시 호출하면 현재 종료 상태를 반환한다.
+
+게임 조회, 결과 조회 또는 QR 요청에서도 서버 Clock으로 탐색 만료를 확인하므로 Client
+Timer만 신뢰하지 않는다.
+
+## 게임 결과 조회
+
+해당 Room의 HOST와 PLAYER가 종료 결과를 조회한다.
+
+```http
+GET /api/v1/games/{gameId}/result
+Authorization: Bearer {hostToken|participantToken}
+```
+
+```json
+{
+  "gameId": 1,
+  "status": "FINISHED",
+  "winner": "SEEKER",
+  "seekStartedAt": "2026-08-29T08:05:00Z",
+  "seekEndsAt": "2026-08-29T08:25:00Z",
+  "finishedAt": "2026-08-29T08:17:12Z",
+  "hiders": [
+    {
+      "participantId": 10,
+      "nickname": "재원",
+      "characterId": 11,
+      "participantStatus": "ELIMINATED",
+      "characterStatus": "FOUND",
+      "survivalSeconds": 732,
+      "foundAt": "2026-08-29T08:17:12Z",
+      "foundByParticipantId": 12,
+      "foundByNickname": "민수",
+      "previewImageUrl": "/files/1/10/preview-uuid.jpg"
+    }
+  ],
+  "seekers": [
+    {
+      "participantId": 12,
+      "nickname": "민수",
+      "foundCount": 1
+    }
+  ]
+}
+```
+
+HIDER는 `survivalSeconds` 내림차순, SEEKER는 `foundCount` 내림차순이다. 아직 종료되지
+않은 Game은 `409 GAME_INVALID_STATE`, 다른 Room Token은 `403 ACCESS_DENIED`다.

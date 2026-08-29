@@ -57,4 +57,13 @@ public class CharacterController {
 	) {
 		return characterService.getAll(gameId, actor);
 	}
+
+	@PostMapping("/{characterId}/hidden")
+	public CharacterResponse markHidden(
+			@PathVariable Long gameId,
+			@PathVariable Long characterId,
+			@AuthenticationPrincipal AuthenticatedActor actor
+	) {
+		return characterService.markHidden(gameId, characterId, actor);
+	}
 }

@@ -786,7 +786,9 @@ HOST 또는 해당 Game의 PLAYER Token이 필요하다. PLAYER 응답의 `myRol
 POST /api/v1/games/{gameId}/hiding/start
 ```
 
-HOST 전용.
+HOST 전용. `PRINTING` 상태에서 인쇄와 배부 완료를 확인하는 요청이다. 모든 Character를
+`SUBMITTED → PRINTED`로 전환하고 `hideStartedAt`을 기록한 뒤 Game을 `HIDING`으로
+전환한다.
 
 ### 탐색 Phase 시작
 
@@ -794,7 +796,8 @@ HOST 전용.
 POST /api/v1/games/{gameId}/seeking/start
 ```
 
-HOST 전용.
+HOST 전용. `hideEndsAt`이 지났고 모든 Character가 `HIDDEN`일 때만 `seekStartedAt`을
+기록하고 `SEEKING`으로 전환한다.
 
 ### 게임 종료
 
@@ -802,7 +805,18 @@ HOST 전용.
 POST /api/v1/games/{gameId}/finish
 ```
 
-HOST 또는 서버 내부 자동 종료.
+HOST 또는 서버 내부 만료 확인용. 탐색시간 전에는 종료할 수 없다. 모든 HIDER 발견 시
+SEEKER 승리로 즉시 종료하며, `seekEndsAt` 이후 남은 HIDER가 있으면 이들을 `SURVIVED`로
+처리하고 HIDER 승리로 종료한다.
+
+### 게임 결과
+
+```http
+GET /api/v1/games/{gameId}/result
+```
+
+해당 Room의 HOST와 PLAYER가 `FINISHED` 상태에서 조회한다. HIDER는 생존시간 내림차순,
+SEEKER는 발견 수 내림차순으로 반환한다.
 
 ---
 
@@ -868,7 +882,7 @@ HOST 전용.
 POST /api/v1/games/{gameId}/characters/{characterId}/hidden
 ```
 
-HIDER 본인 Character만 가능.
+`HIDING` 상태의 HIDER 본인 Character만 가능하며 `PRINTED → HIDDEN`으로 전환한다.
 
 ---
 
@@ -931,6 +945,8 @@ Bearer Header로 이미지를 Fetch한 뒤 Blob URL로 출력한다.
 GET /api/v1/characters/qr/{qrToken}
 ```
 
+해당 Game의 ACTIVE SEEKER가 `SEEKING` 상태에서만 조회할 수 있다.
+
 ---
 
 ## 13.3 발견 처리
@@ -946,6 +962,8 @@ POST /api/v1/games/{gameId}/characters/{qrToken}/found
 3. qrToken이 유효한지
 4. Character가 해당 Game에 속하는지
 5. Character가 이미 FOUND 상태가 아닌지
+
+Game 행과 Character 행을 비관적 잠금 순서로 획득해 동일 QR 동시 요청을 직렬화한다.
 
 성공 시:
 
@@ -1049,6 +1067,10 @@ HIDER의 제출을 확인한 뒤에만 PRINTING으로 전환한다. HIDING 만�
 MVP에서는 별도의 분산 Scheduler를 사용하지 않는다.
 
 필요한 경우 Spring `@Scheduled`로 만료 Game을 주기적으로 확인한다.
+
+현재 MVP는 Scheduler 없이 `GET /games/{gameId}`, `POST /finish`, 결과 조회, QR 처리 시
+서버 Clock으로 만료를 동기화한다. QR 요청이 정확히 만료 시각 이후 도착하면 HIDER 승리
+종료는 Commit하고 해당 Scan은 409로 거절한다.
 
 ---
 

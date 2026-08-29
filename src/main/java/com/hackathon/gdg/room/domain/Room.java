@@ -62,6 +62,13 @@ public class Room {
 		status = RoomStatus.PLAYING;
 	}
 
+	public void finishGame() {
+		if (status != RoomStatus.PLAYING) {
+			throw new IllegalStateException("PLAYING 상태의 방만 종료할 수 있습니다.");
+		}
+		status = RoomStatus.FINISHED;
+	}
+
 	@PrePersist
 	void onCreate() {
 		Instant now = Instant.now();

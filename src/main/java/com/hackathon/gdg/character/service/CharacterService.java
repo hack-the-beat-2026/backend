@@ -1,6 +1,7 @@
 package com.hackathon.gdg.character.service;
 
 import com.hackathon.gdg.character.domain.Character;
+import com.hackathon.gdg.character.domain.CharacterStatus;
 import com.hackathon.gdg.character.dto.CharacterResponse;
 import com.hackathon.gdg.character.dto.CharacterSubmitRequest;
 import com.hackathon.gdg.character.repository.CharacterRepository;
@@ -125,6 +126,41 @@ public class CharacterService {
 		return characterRepository.findAllByGameIdOrderByIdAsc(gameId).stream()
 				.map(CharacterResponse::from)
 				.toList();
+	}
+
+	@Transactional
+	public CharacterResponse markHidden(Long gameId, Long characterId, AuthenticatedActor actor) {
+		Game game = findGameForUpdate(gameId);
+		Participant participant = requireHider(game, actor);
+		if (game.getStatus() != GameStatus.HIDING) {
+			throw new ApiException(
+					ErrorCode.GAME_INVALID_STATE,
+					HttpStatus.CONFLICT,
+					"HIDING 상태에서만 숨기기 완료할 수 있습니다."
+			);
+		}
+		Character character = characterRepository.findById(characterId)
+				.orElseThrow(() -> new ApiException(
+						ErrorCode.CHARACTER_NOT_FOUND,
+						HttpStatus.NOT_FOUND,
+						"Character를 찾을 수 없습니다."
+				));
+		if (!character.getGame().getId().equals(gameId)
+				|| !character.getParticipant().getId().equals(participant.getId())) {
+			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "본인 Character만 숨기기 완료할 수 있습니다.");
+		}
+		if (character.getStatus() == CharacterStatus.HIDDEN) {
+			throw new ApiException(
+					ErrorCode.CHARACTER_ALREADY_HIDDEN,
+					HttpStatus.CONFLICT,
+					"이미 숨기기 완료한 Character입니다."
+			);
+		}
+		if (character.getStatus() != CharacterStatus.PRINTED) {
+			throw new ApiException(ErrorCode.GAME_INVALID_STATE, HttpStatus.CONFLICT, "현재 Character 상태에서 숨기기 완료할 수 없습니다.");
+		}
+		character.markHidden();
+		return CharacterResponse.from(character);
 	}
 
 	private Game findGameForUpdate(Long gameId) {

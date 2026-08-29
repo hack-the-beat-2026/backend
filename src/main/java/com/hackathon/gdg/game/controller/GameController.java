@@ -35,4 +35,28 @@ public class GameController {
 	) {
 		return gameService.getGame(gameId, actor);
 	}
+
+	@PostMapping("/games/{gameId}/hiding/start")
+	public GameResponse startHiding(
+			@PathVariable Long gameId,
+			@AuthenticationPrincipal AuthenticatedActor actor
+	) {
+		return gameService.startHiding(gameId, actor);
+	}
+
+	@PostMapping("/games/{gameId}/seeking/start")
+	public GameResponse startSeeking(
+			@PathVariable Long gameId,
+			@AuthenticationPrincipal AuthenticatedActor actor
+	) {
+		return gameService.startSeeking(gameId, actor);
+	}
+
+	@PostMapping("/games/{gameId}/finish")
+	public GameResponse finishGame(
+			@PathVariable Long gameId,
+			@AuthenticationPrincipal AuthenticatedActor actor
+	) {
+		return gameService.finishGame(gameId, actor);
+	}
 }

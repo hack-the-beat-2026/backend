@@ -1,5 +1,8 @@
 package com.hackathon.gdg.game.service;
 
+import com.hackathon.gdg.character.domain.Character;
+import com.hackathon.gdg.character.domain.CharacterStatus;
+import com.hackathon.gdg.character.repository.CharacterRepository;
 import com.hackathon.gdg.game.domain.Game;
 import com.hackathon.gdg.game.domain.GameStatus;
 import com.hackathon.gdg.game.dto.GameResponse;
@@ -29,20 +32,26 @@ public class GameService {
 	private final RoomRepository roomRepository;
 	private final GameRepository gameRepository;
 	private final ParticipantRepository participantRepository;
+	private final CharacterRepository characterRepository;
 	private final RandomRoleAssigner roleAssigner;
+	private final GameCompletionService completionService;
 	private final Clock clock;
 
 	public GameService(
 			RoomRepository roomRepository,
 			GameRepository gameRepository,
 			ParticipantRepository participantRepository,
+			CharacterRepository characterRepository,
 			RandomRoleAssigner roleAssigner,
+			GameCompletionService completionService,
 			Clock clock
 	) {
 		this.roomRepository = roomRepository;
 		this.gameRepository = gameRepository;
 		this.participantRepository = participantRepository;
+		this.characterRepository = characterRepository;
 		this.roleAssigner = roleAssigner;
+		this.completionService = completionService;
 		this.clock = clock;
 	}
 
@@ -94,9 +103,9 @@ public class GameService {
 		return toResponse(game, GameRole.NONE, null);
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public GameResponse getGame(Long gameId, AuthenticatedActor actor) {
-		Game game = gameRepository.findById(gameId)
+		Game game = gameRepository.findByIdForUpdate(gameId)
 				.orElseThrow(() -> new ApiException(
 						ErrorCode.GAME_NOT_FOUND,
 						HttpStatus.NOT_FOUND,
@@ -106,6 +115,7 @@ public class GameService {
 		if (actor == null || !roomId.equals(actor.roomId())) {
 			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "해당 게임에 접근할 수 없습니다.");
 		}
+		completionService.finishIfSeekTimeExpired(game, clock.instant());
 
 		if (actor.isHost()) {
 			return toResponse(game, GameRole.NONE, null);
@@ -117,6 +127,72 @@ public class GameService {
 						"참가자 정보를 찾을 수 없습니다."
 				));
 		return toResponse(game, participant.getGameRole(), participant.getStatus());
+	}
+
+	@Transactional
+	public GameResponse startHiding(Long gameId, AuthenticatedActor actor) {
+		Game game = findGameForUpdate(gameId);
+		validateHost(actor, game.getRoom().getId(), "해당 방의 HOST만 숨기기를 시작할 수 있습니다.");
+		if (game.getStatus() != GameStatus.PRINTING) {
+			throw invalidState("PRINTING 상태에서만 숨기기를 시작할 수 있습니다.");
+		}
+		List<Character> characters = characterRepository.findAllByGameIdOrderByIdAsc(gameId);
+		if (characters.isEmpty() || characters.stream().anyMatch(character -> character.getStatus() != CharacterStatus.SUBMITTED)) {
+			throw invalidState("모든 Character가 제출된 상태여야 합니다.");
+		}
+		Instant startedAt = clock.instant();
+		characters.forEach(character -> character.markPrinted(startedAt));
+		game.startHiding(startedAt);
+		return toResponse(game, GameRole.NONE, null);
+	}
+
+	@Transactional
+	public GameResponse startSeeking(Long gameId, AuthenticatedActor actor) {
+		Game game = findGameForUpdate(gameId);
+		validateHost(actor, game.getRoom().getId(), "해당 방의 HOST만 탐색을 시작할 수 있습니다.");
+		if (game.getStatus() != GameStatus.HIDING) {
+			throw invalidState("HIDING 상태에서만 탐색을 시작할 수 있습니다.");
+		}
+		Instant now = clock.instant();
+		if (now.isBefore(game.getHideEndsAt())) {
+			throw new ApiException(
+					ErrorCode.HIDE_TIME_NOT_EXPIRED,
+					HttpStatus.CONFLICT,
+					"숨기기 제한시간이 아직 끝나지 않았습니다."
+			);
+		}
+		List<Character> characters = characterRepository.findAllByGameIdOrderByIdAsc(gameId);
+		if (characters.isEmpty() || characters.stream().anyMatch(character -> character.getStatus() != CharacterStatus.HIDDEN)) {
+			throw new ApiException(
+					ErrorCode.HIDERS_NOT_READY,
+					HttpStatus.CONFLICT,
+					"모든 HIDER가 숨기기 완료 상태여야 합니다."
+			);
+		}
+		game.startSeeking(now);
+		return toResponse(game, GameRole.NONE, null);
+	}
+
+	@Transactional
+	public GameResponse finishGame(Long gameId, AuthenticatedActor actor) {
+		Game game = findGameForUpdate(gameId);
+		validateHost(actor, game.getRoom().getId(), "해당 방의 HOST만 게임 종료를 확인할 수 있습니다.");
+		if (game.getStatus() == GameStatus.FINISHED) {
+			return toResponse(game, GameRole.NONE, null);
+		}
+		if (game.getStatus() != GameStatus.SEEKING) {
+			throw invalidState("SEEKING 상태의 게임만 종료할 수 있습니다.");
+		}
+		Instant now = clock.instant();
+		if (!completionService.finishIfAllHidersFound(game, now)
+				&& !completionService.finishIfSeekTimeExpired(game, now)) {
+			throw new ApiException(
+					ErrorCode.SEEK_TIME_NOT_EXPIRED,
+					HttpStatus.CONFLICT,
+					"탐색 제한시간이 아직 끝나지 않았습니다."
+			);
+		}
+		return toResponse(game, GameRole.NONE, null);
 	}
 
 	private GameResponse toResponse(Game game, GameRole myRole, ParticipantStatus participantStatus) {
@@ -135,10 +211,25 @@ public class GameService {
 				game.getDesignStartedAt(),
 				game.getDesignEndsAt(),
 				game.getHideStartedAt(),
+				game.getHideEndsAt(),
 				game.getSeekStartedAt(),
+				game.getSeekEndsAt(),
 				game.getFinishedAt(),
 				game.getWinner()
 		);
+	}
+
+	private Game findGameForUpdate(Long gameId) {
+		return gameRepository.findByIdForUpdate(gameId)
+				.orElseThrow(() -> new ApiException(
+						ErrorCode.GAME_NOT_FOUND,
+						HttpStatus.NOT_FOUND,
+						"게임을 찾을 수 없습니다."
+				));
+	}
+
+	private ApiException invalidState(String message) {
+		return new ApiException(ErrorCode.GAME_INVALID_STATE, HttpStatus.CONFLICT, message);
 	}
 
 	private Game findCurrentGame(Long roomId) {
@@ -151,8 +242,12 @@ public class GameService {
 	}
 
 	private void validateHost(AuthenticatedActor actor, Long roomId) {
+		validateHost(actor, roomId, "해당 방의 HOST만 게임을 시작할 수 있습니다.");
+	}
+
+	private void validateHost(AuthenticatedActor actor, Long roomId, String message) {
 		if (actor == null || !actor.isHost() || !roomId.equals(actor.roomId())) {
-			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, "해당 방의 HOST만 게임을 시작할 수 있습니다.");
+			throw new ApiException(ErrorCode.ACCESS_DENIED, HttpStatus.FORBIDDEN, message);
 		}
 	}
 }

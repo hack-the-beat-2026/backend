@@ -21,7 +21,9 @@ public record GameResponse(
 		Instant designStartedAt,
 		Instant designEndsAt,
 		Instant hideStartedAt,
+		Instant hideEndsAt,
 		Instant seekStartedAt,
+		Instant seekEndsAt,
 		Instant finishedAt,
 		Winner winner
 ) {
