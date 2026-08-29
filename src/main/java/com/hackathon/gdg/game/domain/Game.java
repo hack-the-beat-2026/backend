@@ -1,0 +1,140 @@
+package com.hackathon.gdg.game.domain;
+
+import com.hackathon.gdg.room.domain.Room;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
+
+import java.time.Instant;
+import java.util.Objects;
+
+@Entity
+@Table(name = "games")
+public class Game {
+
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long id;
+
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@JoinColumn(name = "room_id", nullable = false)
+	private Room room;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 30)
+	private GameStatus status;
+
+	@Column(name = "design_duration_seconds", nullable = false)
+	private int designDurationSeconds;
+
+	@Column(name = "hide_duration_seconds", nullable = false)
+	private int hideDurationSeconds;
+
+	@Column(name = "seek_duration_seconds", nullable = false)
+	private int seekDurationSeconds;
+
+	@Column(name = "seeker_count", nullable = false)
+	private int seekerCount;
+
+	@Column(name = "design_started_at")
+	private Instant designStartedAt;
+
+	@Column(name = "hide_started_at")
+	private Instant hideStartedAt;
+
+	@Column(name = "seek_started_at")
+	private Instant seekStartedAt;
+
+	@Column(name = "finished_at")
+	private Instant finishedAt;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 20)
+	private Winner winner;
+
+	@Column(name = "created_at", nullable = false)
+	private Instant createdAt;
+
+	protected Game() {
+	}
+
+	private Game(Room room, int designDurationSeconds, int hideDurationSeconds, int seekDurationSeconds, int seekerCount) {
+		this.room = Objects.requireNonNull(room);
+		this.designDurationSeconds = designDurationSeconds;
+		this.hideDurationSeconds = hideDurationSeconds;
+		this.seekDurationSeconds = seekDurationSeconds;
+		this.seekerCount = seekerCount;
+		this.status = GameStatus.WAITING;
+		this.winner = Winner.NONE;
+	}
+
+	public static Game create(Room room, int designDurationSeconds, int hideDurationSeconds, int seekDurationSeconds, int seekerCount) {
+		return new Game(room, designDurationSeconds, hideDurationSeconds, seekDurationSeconds, seekerCount);
+	}
+
+	@PrePersist
+	void onCreate() {
+		createdAt = Instant.now();
+	}
+
+	public Long getId() {
+		return id;
+	}
+
+	public Room getRoom() {
+		return room;
+	}
+
+	public GameStatus getStatus() {
+		return status;
+	}
+
+	public int getDesignDurationSeconds() {
+		return designDurationSeconds;
+	}
+
+	public int getHideDurationSeconds() {
+		return hideDurationSeconds;
+	}
+
+	public int getSeekDurationSeconds() {
+		return seekDurationSeconds;
+	}
+
+	public int getSeekerCount() {
+		return seekerCount;
+	}
+
+	public Instant getDesignStartedAt() {
+		return designStartedAt;
+	}
+
+	public Instant getHideStartedAt() {
+		return hideStartedAt;
+	}
+
+	public Instant getSeekStartedAt() {
+		return seekStartedAt;
+	}
+
+	public Instant getFinishedAt() {
+		return finishedAt;
+	}
+
+	public Winner getWinner() {
+		return winner;
+	}
+
+	public Instant getCreatedAt() {
+		return createdAt;
+	}
+}
