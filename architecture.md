@@ -677,12 +677,15 @@ Response:
 ```json
 {
   "roomId": 1,
+  "gameId": 1,
   "roomCode": "A7K2Q9",
   "hostToken": "...",
-  "joinUrl": "...",
-  "joinQrUrl": "..."
+  "joinUrl": "..."
 }
 ```
+
+방 생성 Transaction에서 설정값을 가진 `WAITING` Game도 함께 생성한다. `hostToken`
+원문은 이 응답에서만 제공하고 DB에는 SHA-256 Hash만 저장한다.
 
 ### 방 조회
 
@@ -710,7 +713,8 @@ Response:
 {
   "participantId": 10,
   "participantToken": "...",
-  "roomId": 1
+  "roomId": 1,
+  "gameId": 1
 }
 ```
 
@@ -739,7 +743,7 @@ HOST 전용.
 1. 참가자 수 확인
 2. seekerCount 검증
 3. 랜덤 역할 배정
-4. Game 생성
+4. 방 생성 시 만들어진 WAITING Game 조회
 5. 상태 DESIGNING으로 변경
 6. designStartedAt 기록
 7. WebSocket Event 발행

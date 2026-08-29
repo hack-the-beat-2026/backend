@@ -12,4 +12,6 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
 	Optional<Room> findByHostTokenHash(String hostTokenHash);
 
 	boolean existsByRoomCode(String roomCode);
+
+	boolean existsByHostTokenHash(String hostTokenHash);
 }

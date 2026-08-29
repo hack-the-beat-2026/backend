@@ -124,3 +124,50 @@ Room부터 Character까지 게임 핵심 데이터를 PostgreSQL에 안전하게
 - PostgreSQL Compose 컨테이너는 계속 실행 중이다.
 - Token 생성·Hash Service와 Bearer 인증 Filter는 다음 Room API 작업에서 구현한다.
 - 현재 Entity는 생성과 조회에 필요한 최소 동작만 제공하며 상태 전이 메서드는 Game Skeleton 단계에서 추가한다.
+
+## 2026-08-29 15:58 - Room API와 Bearer Token 인증 구현
+
+### 작업 목적
+
+HOST가 방을 만들고 PLAYER가 참가한 뒤 HOST가 Lobby 참가자를 안전하게 조회할 수 있는 첫 End-to-End API 흐름을 구현했다.
+
+### 변경 파일
+
+- `api.md`
+- `architecture.md`
+- `src/main/resources/application.properties`
+- `src/main/java/com/hackathon/gdg/global/error/*`
+- `src/main/java/com/hackathon/gdg/global/security/*`
+- `src/main/java/com/hackathon/gdg/room/controller/RoomController.java`
+- `src/main/java/com/hackathon/gdg/room/dto/*`
+- `src/main/java/com/hackathon/gdg/room/service/RoomCodeGenerator.java`
+- `src/main/java/com/hackathon/gdg/room/service/RoomService.java`
+- `src/main/java/com/hackathon/gdg/room/repository/RoomRepository.java`
+- `src/main/java/com/hackathon/gdg/participant/repository/ParticipantRepository.java`
+- `src/test/java/com/hackathon/gdg/room/RoomApiIntegrationTests.java`
+
+### 변경 내용
+
+- 방 생성, 방 코드 조회, PLAYER 참가, HOST 참가자 목록 API 구현
+- 방 생성 시 설정값을 가진 WAITING Game을 같은 Transaction에서 생성
+- Secure Random 256-bit URL-safe Token과 SHA-256 Hash 처리 구현
+- Token 충돌 확인 및 6자리 고유 Room Code 생성 구현
+- Stateless Bearer 인증 Filter와 HOST/PLAYER Actor 식별 구현
+- 참가자 목록에 해당 Room HOST 소유권 검증 적용
+- Bean Validation, 공통 Error Response, 인증·인가 Error JSON 구현
+- Token 원문은 최초 응답에만 포함하고 목록·조회 응답에서 제외
+- 실제 네 API의 사용법, 요청·응답, 오류, curl 예제를 `api.md`에 작성
+
+### 테스트
+
+- Room API 통합 테스트 6개 추가
+- 방 생성과 Token Hash 저장, 공개 조회, 참가, 대소문자 닉네임 중복, HOST 권한, 입력 검증, 404 확인
+- Token 없음·무효, PLAYER Token, 다른 Room HOST Token 접근 차단 확인
+- 전체 14개 테스트: 실패 0, 오류 0
+- `./gradlew clean test build`: `BUILD SUCCESSFUL`
+
+### 참고사항
+
+- 현재 구현 API는 `api.md`에 기재된 네 개 Endpoint다.
+- 참가 QR Image 생성 Endpoint와 Game 시작·역할 배정은 아직 구현하지 않았다.
+- 다음 작업은 HOST Game 시작, seekerCount 검증, Random Role 배정과 DESIGNING 전환이다.
