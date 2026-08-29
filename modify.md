@@ -220,3 +220,45 @@ HOST가 Lobby 참가자를 기준으로 게임을 시작하고 각 PLAYER가 자
 
 - WebSocket `GAME_STARTED` Event는 Realtime Phase에서 추가한다.
 - 다음 작업은 디자인 Phase 종료와 Character 제출 흐름 또는 상태 전이 API 확장이다.
+
+## 2026-08-29 16:15 - Character 이미지 제출 및 조회 구현
+
+### 작업 목적
+
+HIDER가 디자인 결과를 이미지와 함께 한 번만 제출하고 HOST가 인쇄 준비용 목록을 조회할 수 있도록 Character 흐름을 구현했다.
+
+### 변경 파일
+
+- `api.md`, `architecture.md`, `.gitignore`
+- `src/main/resources/application.properties`
+- `src/main/java/com/hackathon/gdg/character/{controller,dto,service,repository}/*`
+- `src/main/java/com/hackathon/gdg/game/{domain,repository}/*`
+- `src/main/java/com/hackathon/gdg/global/{error,security,storage}/*`
+- `src/test/resources/application-test.properties`
+- `src/test/java/com/hackathon/gdg/character/CharacterApiIntegrationTests.java`
+
+### 변경 내용
+
+- 원본 사진, 투명 Character PNG, Preview와 JSON Metadata를 받는 Multipart 제출 API 구현
+- 실제 PNG/JPEG 판별, 4천만 Pixel 제한, 파일당 15MB·요청당 45MB 제한 적용
+- UUID 기반 Local File Storage와 `/files/**` 정적 이미지 제공 구현
+- ACTIVE HIDER, DESIGNING 상태, 제한시간과 5초 전송 유예, Game당 1회 제출 검증
+- Character별 Secure Random QR Token 자동 발급
+- HIDER 본인 조회와 HOST 전용 제출 목록 조회 API 구현
+- Game 비관적 잠금으로 동시 제출을 직렬화하고 모든 HIDER 제출 완료 시 `PRINTING` 전환
+- DB 저장 실패 시 해당 요청에서 생성한 이미지 파일 정리
+- 실제 API 계약, curl 사용법, 응답과 오류를 `api.md`에 문서화
+
+### 테스트
+
+- Character API 통합 테스트 6개 추가
+- 제출·조회·이미지 제공, SEEKER 차단, 중복 방지, HOST 권한, 이미지 형식 검증 확인
+- 마지막 HIDER 제출 시 `PRINTING` 전환 확인
+- 전체 27개 테스트: 실패 0, 오류 0
+- `./gradlew test`: `BUILD SUCCESSFUL`
+
+### 참고사항
+
+- 로컬 `/files/**`는 개발 편의를 위해 공개한다. 운영에서는 Private Object Storage와 만료 URL로 교체한다.
+- QR 이미지는 저장하지 않으며 향후 인쇄 API에서 `qrToken`으로 동적 생성한다.
+- `DESIGN_SUBMITTED` WebSocket Event는 Realtime Phase에서 추가한다.

@@ -15,4 +15,8 @@ public interface CharacterRepository extends JpaRepository<Character, Long> {
 	Optional<Character> findByQrToken(String qrToken);
 
 	boolean existsByGameIdAndParticipantId(Long gameId, Long participantId);
+
+	boolean existsByQrToken(String qrToken);
+
+	long countByGameId(Long gameId);
 }

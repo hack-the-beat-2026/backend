@@ -93,6 +93,13 @@ public class Game {
 		return designStartedAt == null ? null : designStartedAt.plusSeconds(designDurationSeconds);
 	}
 
+	public void completeDesigning() {
+		if (status != GameStatus.DESIGNING) {
+			throw new IllegalStateException("DESIGNING 상태의 게임만 인쇄 단계로 전환할 수 있습니다.");
+		}
+		status = GameStatus.PRINTING;
+	}
+
 	@PrePersist
 	void onCreate() {
 		createdAt = Instant.now();

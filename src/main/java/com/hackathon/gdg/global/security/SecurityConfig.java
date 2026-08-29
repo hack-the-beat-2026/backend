@@ -24,6 +24,7 @@ public class SecurityConfig {
 				.formLogin(formLogin -> formLogin.disable())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.authorizeHttpRequests(authorize -> authorize
+						.requestMatchers(HttpMethod.GET, "/files/**").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/v1/rooms").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/rooms/*").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/v1/rooms/*/participants").permitAll()

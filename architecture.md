@@ -213,6 +213,10 @@ MVP는 모바일 WebView 환경을 우선한다.
 - 개발: Local File Storage
 - 운영: S3 Compatible Object Storage
 
+현재 MVP는 `STORAGE_ROOT`(기본값 `./storage`) 아래에 파일을 저장하고 `/files/**`로
+제공한다. UUID 파일명을 사용하지만 정적 파일 URL은 인증 없이 접근 가능하므로 민감한
+사진을 장기 보관하는 운영 환경에서는 Private Object Storage와 만료 URL로 교체한다.
+
 저장 대상:
 - HIDER 원본 장소 사진
 - 최종 캐릭터 PNG
@@ -804,34 +808,23 @@ HOST 또는 서버 내부 자동 종료.
 
 # 12. Character API
 
-### 이미지 업로드 URL 발급
-
-```http
-POST /api/v1/games/{gameId}/characters/upload-url
-```
-
-또는 MVP에서는 Multipart Upload 사용 가능.
-
 ### Character 제출
 
 ```http
 POST /api/v1/games/{gameId}/characters
+Content-Type: multipart/form-data
+Authorization: Bearer {participantToken}
 ```
 
-Request 예시:
+MVP는 별도의 업로드 URL 없이 다음 네 Part를 한 요청으로 받는다.
 
-```json
-{
-  "templateType": "STANDING_01",
-  "originalPhotoUrl": "...",
-  "characterImageUrl": "...",
-  "previewImageUrl": "...",
-  "positionX": 0.42,
-  "positionY": 0.58,
-  "scale": 0.7,
-  "rotation": 15
-}
-```
+- `metadata`: JSON (`templateType`, `positionX`, `positionY`, `scale`, `rotation`)
+- `originalPhoto`: PNG 또는 JPEG
+- `characterImage`: 투명 배경을 포함할 수 있는 PNG
+- `previewImage`: PNG 또는 JPEG
+
+파일당 최대 15MB, 전체 요청은 최대 45MB다. 이미지 URL은 Client가 정하지 않고 서버
+저장 후 생성한다.
 
 서버 동작:
 
@@ -842,7 +835,9 @@ Request 예시:
 5. Character 전용 Secure Random `qrToken` 생성
 6. `qrToken`을 Character와 1:1 매핑
 7. Character 저장
-8. HOST에게 `DESIGN_SUBMITTED` WebSocket Event 발행
+8. 모든 HIDER 제출 완료 시 Game을 `PRINTING`으로 전환
+
+`DESIGN_SUBMITTED` WebSocket Event는 Realtime Phase에서 추가한다.
 
 디자인 제한시간이 0이 되면 Frontend는 현재 Canvas 결과로 위 API를 자동 호출한다.
 수동 제출과 자동 제출은 같은 API와 검증을 사용한다. 중복 Click이나 Timer Callback

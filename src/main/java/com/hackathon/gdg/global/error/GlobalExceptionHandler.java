@@ -10,6 +10,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -35,11 +37,23 @@ public class GlobalExceptionHandler {
 		return ResponseEntity.badRequest().body(ApiErrorResponse.validation(fieldErrors));
 	}
 
-	@ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
+	@ExceptionHandler({
+			HttpMessageNotReadableException.class,
+			MethodArgumentTypeMismatchException.class,
+			MissingServletRequestPartException.class
+	})
 	ResponseEntity<ApiErrorResponse> handleMalformedRequest(Exception exception) {
 		return ResponseEntity.badRequest().body(ApiErrorResponse.of(
 				ErrorCode.INVALID_REQUEST,
 				"요청 형식을 확인해 주세요."
+		));
+	}
+
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	ResponseEntity<ApiErrorResponse> handleUploadSize(MaxUploadSizeExceededException exception) {
+		return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).body(ApiErrorResponse.of(
+				ErrorCode.INVALID_IMAGE,
+				"업로드 이미지 크기 제한을 초과했습니다."
 		));
 	}
 

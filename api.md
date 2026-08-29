@@ -17,8 +17,8 @@ Request와 Response는 JSON이며 시간 단위는 초다. HOST와 PLAYER Token�
 Authorization: Bearer {token}
 ```
 
-DB에는 Token 원문이 아닌 SHA-256 Hash만 저장된다. 현재 공개 API는 방 생성, 방 코드
-조회, 방 참가이며 참가자 목록은 해당 방 HOST만 조회할 수 있다.
+DB에는 인증 Token 원문이 아닌 SHA-256 Hash만 저장된다. 공개 API는 방 생성, 방 코드
+조회, 방 참가와 `/files/**` 이미지 조회이며 나머지 API는 Bearer Token이 필요하다.
 
 ## 공통 오류 응답
 
@@ -278,3 +278,102 @@ curl http://localhost:8080/api/v1/games/1 \
 - Token 없음·무효: `401 INVALID_TOKEN`
 - 다른 Room의 Token: `403 ACCESS_DENIED`
 - 존재하지 않는 Game: `404 GAME_NOT_FOUND`
+
+## Character 제출
+
+`DESIGNING` 상태의 `ACTIVE HIDER`가 최종 Canvas 결과를 제출한다. 수동 제출 버튼과
+제한시간 0초의 자동 제출은 모두 이 API를 사용한다. Frontend는 0초에 Canvas 편집을
+잠그고 즉시 세 이미지를 전송해야 하며 서버는 네트워크 전달을 위해 5초만 유예한다.
+
+```http
+POST /api/v1/games/{gameId}/characters
+Authorization: Bearer {hiderParticipantToken}
+Content-Type: multipart/form-data
+```
+
+Multipart Part:
+
+- `metadata`: `application/json`, `templateType` 필수·최대 50자
+- `originalPhoto`: 원본 장소 사진, PNG/JPEG
+- `characterImage`: 배경 제거된 최종 캐릭터, PNG만 가능
+- `previewImage`: 원본과 캐릭터를 합성한 미리보기, PNG/JPEG
+
+좌표는 `0.0~1.0`, `scale`은 0보다 커야 한다. 파일당 최대 15MB, 요청 전체는 최대
+45MB다.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/games/1/characters \
+  -H 'Authorization: Bearer YOUR_HIDER_TOKEN' \
+  -F 'metadata={"templateType":"STANDING_01","positionX":0.42,"positionY":0.58,"scale":0.7,"rotation":15};type=application/json' \
+  -F 'originalPhoto=@original.jpg' \
+  -F 'characterImage=@character.png;type=image/png' \
+  -F 'previewImage=@preview.jpg'
+```
+
+성공: `201 Created`
+
+```json
+{
+  "characterId": 11,
+  "gameId": 1,
+  "participantId": 10,
+  "nickname": "재원",
+  "templateType": "STANDING_01",
+  "originalPhotoUrl": "/files/1/10/original-uuid.jpg",
+  "characterImageUrl": "/files/1/10/character-uuid.png",
+  "previewImageUrl": "/files/1/10/preview-uuid.jpg",
+  "positionX": 0.42,
+  "positionY": 0.58,
+  "scale": 0.7,
+  "rotation": 15.0,
+  "qrToken": "서버가 생성한 고유 Token",
+  "status": "SUBMITTED",
+  "submittedAt": "2026-08-29T07:10:00Z"
+}
+```
+
+서버가 이미지 URL과 고유 `qrToken`을 생성한다. 같은 HIDER는 Game당 한 번만 제출할
+수 있으며 마지막 HIDER 제출 후 Game 상태는 `PRINTING`이 된다.
+
+- SEEKER 또는 비활성 참가자: `403 INVALID_GAME_ROLE`
+- 디자인 시간 만료: `409 DESIGN_TIME_EXPIRED`
+- 이미 제출함: `409 CHARACTER_ALREADY_SUBMITTED`
+- 실제 이미지가 아니거나 형식 불일치: `400 INVALID_IMAGE`
+- `DESIGNING`이 아닌 상태: `409 GAME_INVALID_STATE`
+
+## 내 Character 조회
+
+제출한 HIDER 본인의 Character를 조회한다.
+
+```http
+GET /api/v1/games/{gameId}/characters/me
+Authorization: Bearer {hiderParticipantToken}
+```
+
+성공 응답은 Character 제출 응답과 같다. 아직 제출하지 않았다면
+`404 CHARACTER_NOT_FOUND`, HIDER가 아니면 `403 INVALID_GAME_ROLE`이다.
+
+```bash
+curl http://localhost:8080/api/v1/games/1/characters/me \
+  -H 'Authorization: Bearer YOUR_HIDER_TOKEN'
+```
+
+## 제출 Character 목록
+
+인쇄 준비를 위해 Character를 ID 오름차순으로 조회한다. 해당 Room의 HOST만 가능하며
+각 항목은 제출 응답과 같은 구조다.
+
+```http
+GET /api/v1/games/{gameId}/characters
+Authorization: Bearer {hostToken}
+```
+
+```bash
+curl http://localhost:8080/api/v1/games/1/characters \
+  -H 'Authorization: Bearer YOUR_HOST_TOKEN'
+```
+
+PLAYER 또는 다른 Room HOST는 `403 ACCESS_DENIED`를 반환한다.
+
+개발 환경의 이미지 URL(`/files/**`)은 `<img src>`에서 바로 사용할 수 있도록 공개되어
+있다. 운영 배포 전에는 Private Object Storage와 만료 URL로 교체한다.
