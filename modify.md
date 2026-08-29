@@ -418,3 +418,69 @@ WebSocket 의존성은 당장 제거하지 않지만 MVP 기능에서는 사용�
 - `compose.yaml`과 `application-test.properties`의 DB Credential은 Local/Test 전용 값이며 운영에서는 사용하지 않는다.
 - Render 무료 Web Service 파일시스템은 재시작, 재배포, Idle Spin-down 시 초기화된다. 현재 Local File Storage의 업로드 이미지는 영구 보존되지 않으므로 해커톤 데모 이후에는 Object Storage로 교체해야 한다.
 - Render 무료 PostgreSQL은 만료와 용량 제한이 있으므로 Dashboard의 현재 Free Plan 제한을 확인해야 한다.
+
+## 2026-08-29 - Vercel Frontend CORS 연결
+
+### 작업 목적
+
+배포된 Vercel Frontend가 Render Backend의 REST API와 업로드 이미지에 브라우저에서 접근할 수 있도록 명시적인 CORS 정책을 추가했다.
+
+### 변경 파일
+
+- `src/main/java/com/hackathon/gdg/global/config/CorsConfig.java`
+- `src/main/java/com/hackathon/gdg/global/security/SecurityConfig.java`
+- `src/main/resources/application.properties`
+- `src/test/java/com/hackathon/gdg/global/security/CorsIntegrationTests.java`
+- `modify.md`
+
+### 변경 내용
+
+- `https://temporary-agile-sapphire-croc76y.vercel.app`과 로컬 개발용 `http://localhost:5173`을 기본 허용 Origin으로 설정
+- `/api/**`, `/files/**`에 대해 현재 API가 사용하는 `GET`, `POST`, `OPTIONS`와 `Authorization`, `Content-Type`, `Accept` Header 허용
+- Spring Security Filter Chain에 CORS 처리를 연결해 인증되지 않은 Preflight 요청이 먼저 처리되도록 구성
+- `CORS_ALLOWED_ORIGINS` 환경변수로 운영 허용 Origin 목록을 교체할 수 있도록 설정
+- Credential Cookie를 사용하지 않는 Bearer Token 구조에 맞춰 `allowCredentials=false` 유지
+
+### 빌드 및 테스트 결과
+
+- Vercel Origin 및 localhost 허용, 미등록 Origin 차단 CORS 통합 테스트 3개 추가
+- `./gradlew clean build`: `BUILD SUCCESSFUL`
+- 전체 37개 테스트: 실패 0, 오류 0
+- `docker build --tag gdg-render-cors-validation:local .`: 성공
+
+### Render Environment Variables
+
+- `FRONTEND_BASE_URL=https://temporary-agile-sapphire-croc76y.vercel.app`: 생성되는 참가 URL과 QR URL의 Frontend 주소
+- `CORS_ALLOWED_ORIGINS=https://temporary-agile-sapphire-croc76y.vercel.app`: 운영에서 허용할 브라우저 Origin. 설정하지 않아도 현재 주소가 기본값에 포함되지만 명시 설정을 권장
+
+### 참고사항
+
+- Origin 값 끝에는 `/`를 붙이지 않는다.
+- Vercel 배포 URL이 변경되거나 Custom Domain을 추가하면 쉼표로 구분해 `CORS_ALLOWED_ORIGINS`를 갱신하고 Backend를 재배포한다.
+
+## 2026-08-29 - Vercel Frontend Origin 변경
+
+### 작업 목적
+
+새 Vercel 배포 주소에 맞춰 Backend의 기본 CORS 허용 Origin을 변경했다.
+
+### 변경 파일
+
+- `src/main/resources/application.properties`
+- `src/test/java/com/hackathon/gdg/global/security/CorsIntegrationTests.java`
+- `modify.md`
+
+### 변경 내용
+
+- 기존 Vercel Origin을 `https://temporary-agile-sapphire-croc76y.vercel.app`으로 교체
+- CORS 통합 테스트의 기대 Origin도 새 주소와 일치하도록 변경
+
+### 빌드 및 테스트 결과
+
+- 사용자 요청에 따라 Gradle 테스트는 실행하지 않음
+- `docker build --tag gdg-render-cors-validation:local .`: 성공
+
+### Render Environment Variables
+
+- `FRONTEND_BASE_URL=https://temporary-agile-sapphire-croc76y.vercel.app`
+- `CORS_ALLOWED_ORIGINS=https://temporary-agile-sapphire-croc76y.vercel.app`
