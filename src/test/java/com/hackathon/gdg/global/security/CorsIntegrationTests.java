@@ -20,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class CorsIntegrationTests {
 
 	private static final String FRONTEND_ORIGIN =
-			"https://temporary-agile-sapphire-croc76y.vercel.app";
+			"https://dist-two-ecru-35.vercel.app";
 
 	@Autowired
 	private MockMvc mockMvc;

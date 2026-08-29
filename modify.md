@@ -484,3 +484,29 @@ WebSocket 의존성은 당장 제거하지 않지만 MVP 기능에서는 사용�
 
 - `FRONTEND_BASE_URL=https://temporary-agile-sapphire-croc76y.vercel.app`
 - `CORS_ALLOWED_ORIGINS=https://temporary-agile-sapphire-croc76y.vercel.app`
+
+## 2026-08-29 - Vercel Frontend Origin 재변경
+
+### 작업 목적
+
+새 Vercel 배포 주소에서 Render Backend API를 호출할 수 있도록 기본 CORS 허용 Origin을 갱신했다.
+
+### 변경 파일
+
+- `src/main/resources/application.properties`
+- `src/test/java/com/hackathon/gdg/global/security/CorsIntegrationTests.java`
+- `modify.md`
+
+### 변경 내용
+
+- 기본 허용 Vercel Origin을 `https://dist-two-ecru-35.vercel.app`으로 교체
+- CORS 통합 테스트의 배포 Frontend Origin도 같은 주소로 변경
+
+### 테스트 결과
+
+- `./gradlew --gradle-user-home ./.gradle-local test --tests com.hackathon.gdg.global.security.CorsIntegrationTests`: `BUILD SUCCESSFUL`
+
+### Render Environment Variables
+
+- `FRONTEND_BASE_URL=https://dist-two-ecru-35.vercel.app`
+- `CORS_ALLOWED_ORIGINS=https://dist-two-ecru-35.vercel.app`
