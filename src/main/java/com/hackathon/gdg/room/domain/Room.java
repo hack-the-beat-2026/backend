@@ -55,6 +55,13 @@ public class Room {
 		return new Room(roomCode, name, hostTokenHash);
 	}
 
+	public void startGame() {
+		if (status != RoomStatus.WAITING) {
+			throw new IllegalStateException("WAITING 상태의 방만 게임을 시작할 수 있습니다.");
+		}
+		status = RoomStatus.PLAYING;
+	}
+
 	@PrePersist
 	void onCreate() {
 		Instant now = Instant.now();

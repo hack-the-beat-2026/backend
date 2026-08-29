@@ -748,11 +748,33 @@ HOST 전용.
 6. designStartedAt 기록
 7. WebSocket Event 발행
 
+Room 행을 비관적 잠금한 뒤 위 작업을 하나의 Transaction으로 처리한다. PLAYER는 최소
+2명이어야 하며 `seekerCount < 전체 PLAYER 수`를 만족해야 한다. 성공 시 Room은
+`PLAYING`, 모든 PLAYER는 `ACTIVE`, Game은 `DESIGNING`이 된다.
+
+Response 예시:
+
+```json
+{
+  "gameId": 1,
+  "roomId": 1,
+  "status": "DESIGNING",
+  "myRole": "NONE",
+  "seekerCount": 1,
+  "hiderCount": 2,
+  "designStartedAt": "2026-08-29T07:00:00Z",
+  "designEndsAt": "2026-08-29T07:10:00Z"
+}
+```
+
 ### 현재 게임 조회
 
 ```http
 GET /api/v1/games/{gameId}
 ```
+
+HOST 또는 해당 Game의 PLAYER Token이 필요하다. PLAYER 응답의 `myRole`에는 인증된
+본인의 역할만 포함하며 다른 PLAYER 역할 목록은 노출하지 않는다.
 
 ### 숨기기 Phase 시작
 
@@ -1482,6 +1504,8 @@ INVALID_TOKEN
 ACCESS_DENIED
 GAME_NOT_FOUND
 GAME_INVALID_STATE
+INSUFFICIENT_PARTICIPANTS
+INVALID_SEEKER_COUNT
 INVALID_GAME_ROLE
 CHARACTER_NOT_FOUND
 CHARACTER_ALREADY_SUBMITTED

@@ -182,3 +182,99 @@ curl http://localhost:8080/api/v1/rooms/1/participants \
 - PLAYER Token 또는 다른 Room HOST Token: `403 ACCESS_DENIED`
 
 응답에는 Host/Participant Token 또는 Token Hash가 포함되지 않는다.
+
+## 게임 시작
+
+대기 중인 PLAYER에게 HIDER/SEEKER 역할을 무작위 배정하고 디자인 Phase를 시작한다.
+해당 Room의 HOST Token이 필요하다.
+
+```http
+POST /api/v1/rooms/{roomId}/games/start
+Authorization: Bearer {hostToken}
+```
+
+시작 조건:
+
+- Room과 Game이 모두 `WAITING`
+- 대기 중인 PLAYER가 최소 2명
+- `seekerCount < 전체 PLAYER 수`
+
+성공 시 하나의 Transaction에서 Room은 `PLAYING`, Game은 `DESIGNING`, 모든 PLAYER는
+`ACTIVE`가 된다. `designEndsAt`은 서버 시간 기준 `designStartedAt + 설정 시간`이다.
+
+성공: `200 OK`
+
+```json
+{
+  "gameId": 1,
+  "roomId": 1,
+  "status": "DESIGNING",
+  "myRole": "NONE",
+  "seekerCount": 1,
+  "hiderCount": 2,
+  "designDurationSeconds": 600,
+  "hideDurationSeconds": 300,
+  "seekDurationSeconds": 1200,
+  "designStartedAt": "2026-08-29T07:00:00Z",
+  "designEndsAt": "2026-08-29T07:10:00Z",
+  "hideStartedAt": null,
+  "seekStartedAt": null,
+  "finishedAt": null,
+  "winner": "NONE"
+}
+```
+
+HOST 응답의 `myRole`은 `NONE`이며 `myParticipantStatus`는 포함되지 않는다.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/rooms/1/games/start \
+  -H 'Authorization: Bearer YOUR_HOST_TOKEN'
+```
+
+- Token 없음·무효: `401 INVALID_TOKEN`
+- PLAYER 또는 다른 Room HOST: `403 ACCESS_DENIED`
+- PLAYER 2명 미만: `409 INSUFFICIENT_PARTICIPANTS`
+- `seekerCount >= PLAYER 수`: `409 INVALID_SEEKER_COUNT`
+- 이미 시작했거나 잘못된 상태: `409 GAME_INVALID_STATE`
+
+## 현재 게임 및 내 역할 조회
+
+HOST 또는 해당 Room PLAYER가 현재 Game 상태를 조회한다. PLAYER에게는 본인의 역할만
+`myRole`로 반환하며 다른 PLAYER의 역할은 노출하지 않는다.
+
+```http
+GET /api/v1/games/{gameId}
+Authorization: Bearer {hostToken|participantToken}
+```
+
+PLAYER 성공 응답: `200 OK`
+
+```json
+{
+  "gameId": 1,
+  "roomId": 1,
+  "status": "DESIGNING",
+  "myRole": "HIDER",
+  "myParticipantStatus": "ACTIVE",
+  "seekerCount": 1,
+  "hiderCount": 2,
+  "designDurationSeconds": 600,
+  "hideDurationSeconds": 300,
+  "seekDurationSeconds": 1200,
+  "designStartedAt": "2026-08-29T07:00:00Z",
+  "designEndsAt": "2026-08-29T07:10:00Z",
+  "hideStartedAt": null,
+  "seekStartedAt": null,
+  "finishedAt": null,
+  "winner": "NONE"
+}
+```
+
+```bash
+curl http://localhost:8080/api/v1/games/1 \
+  -H 'Authorization: Bearer YOUR_PARTICIPANT_TOKEN'
+```
+
+- Token 없음·무효: `401 INVALID_TOKEN`
+- 다른 Room의 Token: `403 ACCESS_DENIED`
+- 존재하지 않는 Game: `404 GAME_NOT_FOUND`

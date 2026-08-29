@@ -81,6 +81,18 @@ public class Game {
 		return new Game(room, designDurationSeconds, hideDurationSeconds, seekDurationSeconds, seekerCount);
 	}
 
+	public void startDesigning(Instant startedAt) {
+		if (status != GameStatus.WAITING) {
+			throw new IllegalStateException("WAITING 상태의 게임만 시작할 수 있습니다.");
+		}
+		status = GameStatus.DESIGNING;
+		designStartedAt = Objects.requireNonNull(startedAt);
+	}
+
+	public Instant getDesignEndsAt() {
+		return designStartedAt == null ? null : designStartedAt.plusSeconds(designDurationSeconds);
+	}
+
 	@PrePersist
 	void onCreate() {
 		createdAt = Instant.now();

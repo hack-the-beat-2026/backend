@@ -1,6 +1,9 @@
 package com.hackathon.gdg.participant.repository;
 
 import com.hackathon.gdg.participant.domain.Participant;
+import com.hackathon.gdg.participant.domain.ParticipantStatus;
+import com.hackathon.gdg.participant.domain.ParticipantType;
+import com.hackathon.gdg.participant.domain.GameRole;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -17,4 +20,12 @@ public interface ParticipantRepository extends JpaRepository<Participant, Long> 
 	boolean existsByParticipantTokenHash(String participantTokenHash);
 
 	boolean existsByRoomIdAndNicknameIgnoreCase(Long roomId, String nickname);
+
+	List<Participant> findAllByRoomIdAndTypeAndStatusOrderByJoinedAtAsc(
+			Long roomId,
+			ParticipantType type,
+			ParticipantStatus status
+	);
+
+	long countByRoomIdAndGameRole(Long roomId, GameRole gameRole);
 }

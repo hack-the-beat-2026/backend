@@ -171,3 +171,52 @@ HOST가 방을 만들고 PLAYER가 참가한 뒤 HOST가 Lobby 참가자를 안�
 - 현재 구현 API는 `api.md`에 기재된 네 개 Endpoint다.
 - 참가 QR Image 생성 Endpoint와 Game 시작·역할 배정은 아직 구현하지 않았다.
 - 다음 작업은 HOST Game 시작, seekerCount 검증, Random Role 배정과 DESIGNING 전환이다.
+
+## 2026-08-29 16:05 - 게임 시작 및 개인 역할 조회 구현
+
+### 작업 목적
+
+HOST가 Lobby 참가자를 기준으로 게임을 시작하고 각 PLAYER가 자신의 역할만 안전하게 확인할 수 있도록 Game Skeleton의 첫 상태 전이를 구현했다.
+
+### 변경 파일
+
+- `api.md`
+- `architecture.md`
+- `src/main/java/com/hackathon/gdg/global/config/TimeConfig.java`
+- `src/main/java/com/hackathon/gdg/global/error/ErrorCode.java`
+- `src/main/java/com/hackathon/gdg/room/domain/Room.java`
+- `src/main/java/com/hackathon/gdg/room/repository/RoomRepository.java`
+- `src/main/java/com/hackathon/gdg/participant/domain/Participant.java`
+- `src/main/java/com/hackathon/gdg/participant/repository/ParticipantRepository.java`
+- `src/main/java/com/hackathon/gdg/game/domain/Game.java`
+- `src/main/java/com/hackathon/gdg/game/controller/GameController.java`
+- `src/main/java/com/hackathon/gdg/game/dto/GameResponse.java`
+- `src/main/java/com/hackathon/gdg/game/service/GameService.java`
+- `src/main/java/com/hackathon/gdg/game/service/RandomRoleAssigner.java`
+- `src/test/java/com/hackathon/gdg/game/GameApiIntegrationTests.java`
+
+### 변경 내용
+
+- HOST 전용 게임 시작 API와 인증 Actor별 게임 조회 API 구현
+- PLAYER 최소 2명 및 `seekerCount < PLAYER 수` 검증
+- SecureRandom Shuffle로 설정된 수의 SEEKER와 나머지 HIDER 배정
+- 한 Transaction에서 Room `PLAYING`, Game `DESIGNING`, PLAYER `ACTIVE` 전환
+- 서버 UTC Clock 기준 `designStartedAt`과 `designEndsAt` 계산
+- Room 비관적 잠금으로 동시·중복 게임 시작 직렬화
+- PLAYER에게 본인의 `myRole`과 상태만 반환하고 다른 PLAYER 역할 목록은 비공개
+- Game 시작·조회 요청, 응답, 오류와 curl 사용법을 `api.md`에 추가
+
+### 테스트
+
+- Game API 통합 테스트 7개 추가
+- SEEKER/HIDER 인원, ACTIVE 전환, Room/Game 상태와 디자인 시간 검증
+- 각 PLAYER의 개인 역할 조회 검증
+- Token 없음, PLAYER, 다른 Room HOST의 시작 요청 거부 검증
+- 인원 부족, 잘못된 SEEKER 수, 중복 시작, 다른 Room 게임 조회 거부 검증
+- 전체 21개 테스트: 실패 0, 오류 0
+- `./gradlew clean test build`: `BUILD SUCCESSFUL`
+
+### 참고사항
+
+- WebSocket `GAME_STARTED` Event는 Realtime Phase에서 추가한다.
+- 다음 작업은 디자인 Phase 종료와 Character 제출 흐름 또는 상태 전이 API 확장이다.

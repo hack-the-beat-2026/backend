@@ -70,6 +70,17 @@ public class Participant {
 		return new Participant(room, nickname, participantTokenHash, type);
 	}
 
+	public void assignRole(GameRole role) {
+		if (type != ParticipantType.PLAYER || status != ParticipantStatus.WAITING || gameRole != GameRole.NONE) {
+			throw new IllegalStateException("대기 중인 PLAYER에게만 역할을 배정할 수 있습니다.");
+		}
+		if (role == GameRole.NONE) {
+			throw new IllegalArgumentException("NONE 역할은 배정할 수 없습니다.");
+		}
+		gameRole = role;
+		status = ParticipantStatus.ACTIVE;
+	}
+
 	@PrePersist
 	void onCreate() {
 		joinedAt = Instant.now();
