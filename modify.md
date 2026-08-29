@@ -344,3 +344,77 @@ HOST가 제출된 Character와 고유 QR을 안정적으로 1:1 배치해 브라
 
 - 현재 MVP는 분산 Scheduler 없이 Game 조회, 종료, 결과 조회와 QR 요청 시 만료를 동기화한다.
 - WebSocket 실시간 Event와 Frontend 화면 연동은 별도 후속 작업이다.
+
+## 2026-08-29 - WebSocket 제외 및 Polling 사용 결정
+
+### 결정 내용
+
+해커톤 MVP에서는 WebSocket을 구현하지 않는다. 프론트엔드는 REST API Polling으로 참가자와 게임 상태를 동기화한다.
+
+- 게임 진행 중 `GET /api/v1/games/{gameId}`를 2~3초마다 호출한다.
+- Lobby의 HOST는 `GET /api/v1/rooms/{roomId}/participants`를 2~3초마다 호출한다.
+- 인쇄·숨기기·탐색·발견 등 상태 변경 요청이 성공하면 다음 Polling 주기를 기다리지 않고 즉시 게임 상태를 재조회한다.
+- `designEndsAt`, `hideEndsAt`, `seekEndsAt`을 기준으로 화면 Timer를 표시하되 실제 상태와 승패는 서버 응답을 따른다.
+- 화면을 벗어나거나 Game이 `FINISHED`가 되면 불필요한 Polling을 중단한다.
+
+### 참고사항
+
+WebSocket 의존성은 당장 제거하지 않지만 MVP 기능에서는 사용하지 않는다. 실시간 UX 개선이 필요할 때만 후속 작업으로 검토한다.
+
+## 2026-08-29 - Render Docker Web Service 배포 준비
+
+### 작업 목적
+
+현재 Java 21/Spring Boot 4.1.1 애플리케이션을 Render Web Service에서 Docker 방식으로 빌드하고 실행할 수 있도록 배포 구성을 추가했다.
+
+### 변경 파일
+
+- `Dockerfile`
+- `.dockerignore`
+- `.gitignore`
+- `src/main/resources/application.properties`
+- `modify.md`
+
+### 변경 내용
+
+- Eclipse Temurin 21 JDK Builder와 Temurin 21 JRE Runtime을 사용하는 Multi-stage Docker build 추가
+- Gradle Wrapper 9.7.1로 `clean bootJar -x test`를 실행하고 `*-plain.jar`를 제외한 실행 JAR을 안전하게 선택
+- Runtime image에서 Build Tool을 제외하고 `spring:spring` non-root 사용자로 애플리케이션 실행
+- Runtime의 `/app/storage`를 생성하고 애플리케이션 사용자에게 쓰기 권한 부여
+- `server.port=${PORT:8080}`을 추가해 Render `PORT`와 로컬 기본 8080을 모두 지원
+- Docker context에서 Git/IDE/Build/Test/Log/Local Storage/Secret 파일을 제외
+- `.env`, 인증서, Key, Credential JSON 등의 실수 Commit 방지 규칙을 `.gitignore`에 추가
+- 기존 Actuator `GET /actuator/health`와 Security 공개 설정을 Render Health Check로 재사용
+- Main 설정에는 운영 DB Credential이 없으므로 Spring Boot 표준 `SPRING_DATASOURCE_*` 환경변수 주입 방식을 사용하고 로컬 Docker Compose 자동 연결은 유지
+
+### 빌드 및 검증 결과
+
+- `./gradlew clean build`: `BUILD SUCCESSFUL`
+- 전체 34개 테스트: 실패 0, 오류 0
+- `docker build --tag gdg-render-validation:local .`: 성공
+- Docker image 사용자: `spring:spring`
+- Docker ENTRYPOINT: `java -jar /app/app.jar`
+- 임시 컨테이너에 `PORT=18080`과 Local PostgreSQL 환경변수를 주입해 정상 기동 확인
+- `GET /actuator/health`: HTTP 200, `status=UP`
+- 검증용 Container와 Image는 검증 후 제거
+
+### Render Environment Variables
+
+필수:
+
+- `SPRING_DATASOURCE_URL`: `jdbc:postgresql://{Render Internal Host}:5432/{Database Name}` 형식
+- `SPRING_DATASOURCE_USERNAME`
+- `SPRING_DATASOURCE_PASSWORD`
+- `FRONTEND_BASE_URL`: 배포된 Frontend Origin
+
+선택:
+
+- `STORAGE_ROOT`: 기본값은 Docker Working Directory 기준 `./storage`이며 명시한다면 `/app/storage`
+- `PORT`: Render가 자동 제공하므로 Dashboard에서 직접 추가하지 않아도 됨
+
+### 보안 및 참고사항
+
+- 운영 DB Password, JWT Secret, API Key, AWS/Supabase Key, Service Account Credential은 Repository에서 발견되지 않았다.
+- `compose.yaml`과 `application-test.properties`의 DB Credential은 Local/Test 전용 값이며 운영에서는 사용하지 않는다.
+- Render 무료 Web Service 파일시스템은 재시작, 재배포, Idle Spin-down 시 초기화된다. 현재 Local File Storage의 업로드 이미지는 영구 보존되지 않으므로 해커톤 데모 이후에는 Object Storage로 교체해야 한다.
+- Render 무료 PostgreSQL은 만료와 용량 제한이 있으므로 Dashboard의 현재 Free Plan 제한을 확인해야 한다.

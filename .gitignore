@@ -65,3 +65,15 @@ replay_pid*
 
 # Local uploaded images
 /storage/
+
+# Environment and secret files
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.p12
+*.jks
+*credentials*.json
+*service-account*.json
