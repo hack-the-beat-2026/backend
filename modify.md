@@ -262,3 +262,40 @@ HIDER가 디자인 결과를 이미지와 함께 한 번만 제출하고 HOST가
 - 로컬 `/files/**`는 개발 편의를 위해 공개한다. 운영에서는 Private Object Storage와 만료 URL로 교체한다.
 - QR 이미지는 저장하지 않으며 향후 인쇄 API에서 `qrToken`으로 동적 생성한다.
 - `DESIGN_SUBMITTED` WebSocket Event는 Realtime Phase에서 추가한다.
+
+## 2026-08-29 16:22 - QR PNG 및 인쇄 Sheet API 구현
+
+### 작업 목적
+
+HOST가 제출된 Character와 고유 QR을 안정적으로 1:1 배치해 브라우저에서 양면 인쇄할 수 있는 서버 계약을 구현했다.
+
+### 변경 파일
+
+- `api.md`, `architecture.md`
+- `src/main/java/com/hackathon/gdg/global/error/ErrorCode.java`
+- `src/main/java/com/hackathon/gdg/qr/service/QrService.java`
+- `src/main/java/com/hackathon/gdg/print/{controller,dto,service}/*`
+- `src/test/java/com/hackathon/gdg/print/PrintApiIntegrationTests.java`
+
+### 변경 내용
+
+- ZXing으로 Character QR을 512×512 PNG로 동적 생성하는 HOST 전용 API 구현
+- QR Payload를 `{FRONTEND_BASE_URL}/c/{qrToken}`으로 제한해 개인정보와 DB ID 제외
+- A4 세로, 100%, 긴 모서리 넘김 기준의 HOST 전용 Print Sheet API 구현
+- Character ID 오름차순을 고정 `printSlot`으로 제공해 Front Character와 Back QR Pairing 보장
+- `PRINTING` 상태와 해당 Room HOST 소유권 검증 적용
+- QR 이미지는 DB와 File Storage에 저장하지 않고 요청마다 생성
+- API 응답, curl, Frontend Blob 처리와 인쇄 설정을 `api.md`에 문서화
+
+### 테스트
+
+- 인쇄 API 통합 테스트 3개 추가
+- 고정 PrintSlot과 Character 순서, 인쇄 설정, 권한, 준비 전 접근 차단 확인
+- 생성된 PNG를 ZXing으로 다시 Decode해 실제 Payload와 Character Token 일치 확인
+- 전체 30개 테스트: 실패 0, 오류 0
+- `./gradlew test`: `BUILD SUCCESSFUL`
+
+### 참고사항
+
+- Browser Print 화면과 CSS는 Frontend 구현 범위다.
+- 인쇄 확인 후 `HIDING` 전환과 Character `PRINTED` 처리는 다음 상태 전이 단계에서 구현한다.

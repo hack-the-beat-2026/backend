@@ -377,3 +377,85 @@ PLAYER 또는 다른 Room HOST는 `403 ACCESS_DENIED`를 반환한다.
 
 개발 환경의 이미지 URL(`/files/**`)은 `<img src>`에서 바로 사용할 수 있도록 공개되어
 있다. 운영 배포 전에는 Private Object Storage와 만료 URL로 교체한다.
+
+## 인쇄 Sheet 조회
+
+모든 HIDER 제출이 끝나 Game이 `PRINTING`이 되면 해당 Room HOST가 양면 인쇄 데이터를
+조회한다.
+
+```http
+GET /api/v1/games/{gameId}/print-sheet
+Authorization: Bearer {hostToken}
+```
+
+```bash
+curl http://localhost:8080/api/v1/games/1/print-sheet \
+  -H 'Authorization: Bearer YOUR_HOST_TOKEN'
+```
+
+성공: `200 OK`
+
+```json
+{
+  "gameId": 1,
+  "paperSize": "A4",
+  "orientation": "PORTRAIT",
+  "duplexFlip": "LONG_EDGE",
+  "scalePercent": 100,
+  "columns": 3,
+  "characters": [
+    {
+      "printSlot": 1,
+      "characterId": 11,
+      "characterImageUrl": "/files/1/10/character-uuid.png",
+      "qrImageUrl": "/api/v1/games/1/characters/11/qr",
+      "qrToken": "Character 고유 QR Token"
+    }
+  ]
+}
+```
+
+서버는 Character ID 오름차순으로 `printSlot`을 고정한다. Front Page의 Character와
+Back Page의 QR에 반드시 같은 `printSlot`과 절단 영역을 사용해야 한다.
+
+권장 인쇄 설정:
+
+- A4 세로, 3열
+- 실제 크기 100%
+- 양면 인쇄, 긴 모서리 넘김
+
+- Token 없음·무효: `401 INVALID_TOKEN`
+- PLAYER 또는 다른 Room HOST: `403 ACCESS_DENIED`
+- 모든 HIDER가 제출하기 전: `409 GAME_INVALID_STATE`
+- 존재하지 않는 Game: `404 GAME_NOT_FOUND`
+
+## 인쇄용 QR PNG 조회
+
+인쇄 Sheet의 `qrImageUrl`로 Character 전용 QR PNG를 가져온다. HOST 인증이 필요하므로
+일반 `<img src>` 대신 Bearer Header로 Fetch한 Blob URL을 사용한다.
+
+```http
+GET /api/v1/games/{gameId}/characters/{characterId}/qr
+Authorization: Bearer {hostToken}
+Accept: image/png
+```
+
+```bash
+curl http://localhost:8080/api/v1/games/1/characters/11/qr \
+  -H 'Authorization: Bearer YOUR_HOST_TOKEN' \
+  -o character-11-qr.png
+```
+
+성공 시 `512×512 image/png`을 반환한다. QR에는 다음 URL만 들어가며 닉네임,
+Participant ID, Character ID, Game ID는 포함하지 않는다.
+
+```text
+{FRONTEND_BASE_URL}/c/{qrToken}
+```
+
+로컬 기본 Payload는 `http://localhost:5173/c/{qrToken}`이다. QR 이미지는 DB나 파일
+시스템에 저장하지 않고 요청할 때 ZXing으로 생성한다.
+
+- 다른 Game의 Character 또는 없는 Character: `404 CHARACTER_NOT_FOUND`
+- `PRINTING`이 아닌 상태: `409 GAME_INVALID_STATE`
+- QR 생성 실패: `500 QR_GENERATION_FAILED`

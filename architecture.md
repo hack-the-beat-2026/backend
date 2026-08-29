@@ -912,6 +912,17 @@ QR 이미지 파일 자체는 DB에 저장하지 않는다.
 
 QR 이미지는 인쇄 페이지 생성 시 `qrToken`을 이용해 동적으로 생성한다.
 
+### 인쇄용 QR PNG
+
+```http
+GET /api/v1/games/{gameId}/characters/{characterId}/qr
+Authorization: Bearer {hostToken}
+```
+
+해당 Room의 HOST가 `PRINTING` 상태에서 호출하며 512×512 PNG를 반환한다. QR Payload는
+`{FRONTEND_BASE_URL}/c/{qrToken}`이고 개인정보나 DB ID를 포함하지 않는다. Print Page는
+Bearer Header로 이미지를 Fetch한 뒤 Blob URL로 출력한다.
+
 ---
 
 ## 13.2 QR Character 확인
@@ -1217,22 +1228,33 @@ Response 예시:
 ```json
 {
   "gameId": 10,
+  "paperSize": "A4",
+  "orientation": "PORTRAIT",
+  "duplexFlip": "LONG_EDGE",
+  "scalePercent": 100,
+  "columns": 3,
   "characters": [
     {
+      "printSlot": 1,
       "characterId": 101,
       "characterImageUrl": "...",
+      "qrImageUrl": "/api/v1/games/10/characters/101/qr",
       "qrToken": "..."
     },
     {
+      "printSlot": 2,
       "characterId": 102,
       "characterImageUrl": "...",
+      "qrImageUrl": "/api/v1/games/10/characters/102/qr",
       "qrToken": "..."
     }
   ]
 }
 ```
 
-Frontend Print Page는 Character 목록 순서를 고정한 뒤 동일한 순서를 이용해 Front / Back Sheet를 생성한다.
+해당 Room의 HOST만 `PRINTING` 상태에서 호출할 수 있다. 서버는 Character ID 오름차순을
+1부터 시작하는 고정 `printSlot`으로 변환한다. Frontend Print Page는 동일한
+`printSlot`과 Cutting Area를 Front Character와 Back QR 양쪽에 사용한다.
 
 Frontend Route:
 
